@@ -1,19 +1,48 @@
-import PrimeGen from "./src/publishers/primeGenerator.js";
-import Prime1 from "./src/clients/prime1.js";
-import Mersenne from "./src/clients/mersenne.js";
-import Prime4Digit from "./src/clients/prime4digit.js";
+import express from "express";
+import bodyParser from "body-parser";
+import mongoose from "mongoose";
+import cookieParser from "cookie-parser";
+import usersRouter from "./routes/users.js";
+import productsRouter from "./routes/products.js";
+import chatRouter from "./routes/chat.js";
+import session from "express-session";
+import cors from "cors";
+import SocketIO from "./socket.js";
+import * as graphqlHttp from "express-graphql";
+import Schema from "./graphql/schema.js";
+import QueryRoot from "./graphql/resolvers.js";
 
-function runGen(limit){
-    const primeGen = new PrimeGen(limit);
-    const prime1 = new Prime1();
-    const mersenne = new Mersenne();
-    const prime4digit = new Prime4Digit();
+const app = express();
+app.use(cors({ origin: "http://localhost:3000", credentials: true }));
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(express.json());
+app.use(cookieParser());
+app.use(
+  session({
+    secret: "mySecret",
+    cookie: { secure: true },
+  })
+);
+app.use("/users", usersRouter);
+app.use("/products", productsRouter);
+app.use("/chat", chatRouter);
 
-    primeGen.on('primeRelease', mersenne.check)
-    primeGen.on('primeRelease', prime1.check)
-    primeGen.on('primeRelease', prime4digit.check)
-    primeGen.printNumbers()
+app.use(
+  "/graphql",
+  graphqlHttp.graphqlHTTP({
+    schema: Schema,
+    rootValue: QueryRoot,
+    graphiql: true,
+  })
+);
 
-}
-
-export default runGen;
+mongoose
+  .connect("mongodb+srv://mark:mark341544@cluster0.wm0yljj.mongodb.net/", {
+    dbName: "demo",
+  })
+  .then(() => {
+    const server = app.listen(3002);
+    const io = SocketIO.init(server);
+    io.on("connection", (socket) => console.log("connected"));
+  })
+  .catch((err) => console.log(err));
